@@ -2,22 +2,39 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_socketio import SocketIO, join_room, leave_room, send
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_mail import Mail, Message as MailMessage
 import uuid
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chat.db'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT'))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+
 db = SQLAlchemy(app)
 socketio = SocketIO(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+mail = Mail(app)
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=False)
+    email_verified = db.Column(db.Boolean, default=False)
+    email_verification_token = db.Column(db.String(150), nullable=True)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,8 +57,11 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
         if user and user.password == password:
-            login_user(user)
-            return redirect(url_for('index'))
+            if user.email_verified:
+                login_user(user)
+                return redirect(url_for('index'))
+            else:
+                flash('Email not verified. Please check your inbox.', 'danger')
         else:
             flash('Login Unsuccessful. Please check username and password', 'danger')
     return render_template('login.html')
@@ -51,22 +71,44 @@ def signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        email = request.form['email']
         if User.query.filter_by(username=username).first():
             flash('Username already exists', 'danger')
+        elif User.query.filter_by(email=email).first():
+            flash('Email already registered', 'danger')
         else:
-            new_user = User(username=username, password=password)
+            verification_token = str(uuid.uuid4())
+            new_user = User(username=username, password=password, email=email, email_verification_token=verification_token)
             db.session.add(new_user)
             db.session.commit()
-            flash('Account created successfully', 'success')
+            
+            verification_link = url_for('verify_email', token=verification_token, _external=True)
+            msg = MailMessage('Email Verification', sender=os.getenv('MAIL_USERNAME'), recipients=[email])
+            msg.body = f'Please click the link to verify your email: {verification_link}'
+            mail.send(msg)
+
+            flash('Account created successfully. Please check your email to verify your account.', 'success')
             return redirect(url_for('login'))
     return render_template('signup.html')
+
+@app.route('/verify_email/<token>')
+def verify_email(token):
+    user = User.query.filter_by(email_verification_token=token).first()
+    if user:
+        user.email_verified = True
+        user.email_verification_token = None
+        db.session.commit()
+        flash('Email verified successfully. You can now log in.', 'success')
+        return redirect(url_for('login'))
+    else:
+        flash('Invalid or expired token', 'danger')
+        return redirect(url_for('index'))
 
 @app.route('/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('index'))
-
 
 @app.route('/create_room')
 @login_required
