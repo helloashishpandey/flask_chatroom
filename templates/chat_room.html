@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="flex items-center justify-center h-screen bg-gray-100">
+    <div class="w-full max-w-md bg-white rounded shadow-md p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold">Chat Room: {{ room_id }}</h1>
+            <form action="{{ url_for('logout') }}" method="POST">
+                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">Logout</button>
+            </form>
+        </div>
+        <div id="messages" class="mb-4 p-2 border h-64 overflow-y-scroll">
+            {% for message in messages %}
+                <div>{{ message.username }}: {{ message.message }}</div>
+            {% endfor %}
+        </div>
+        <input id="message" type="text" placeholder="Enter your message" class="border rounded py-2 px-4 w-full mb-2">
+        <button onclick="sendMessage()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">
+            Send
+        </button>
+    </div>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        var socket = io();
+        var room = "{{ room_id }}";
+
+        function joinRoom() {
+            socket.emit('join', {'room': room});
+        }
+
+        socket.on('connect', function() {
+            joinRoom();
+        });
+
+        socket.on('message', function(msg) {
+            var messages = document.getElementById('messages');
+            var message = document.createElement('div');
+            message.innerHTML = msg;
+            messages.appendChild(message);
+        });
+
+        function sendMessage() {
+            var message = document.getElementById('message').value;
+            socket.emit('message', {'message': message, 'room': room});
+            document.getElementById('message').value = ''; // Clear the input field
+        }
+    </script>
+</body>
+</html>

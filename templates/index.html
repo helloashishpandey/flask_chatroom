@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="flex items-center justify-center h-screen bg-gray-100">
+    <div class="text-center">
+        <h1 class="text-4xl font-bold mb-8">Welcome to the Chat Room</h1>
+        <div class="mb-4">
+            <a href="/create_room" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Create a New Chat Room
+            </a>
+        </div>
+        <div>
+            <input id="room_id" type="text" placeholder="Enter Room ID" class="border rounded py-2 px-4 mb-4">
+            <button onclick="joinRoom()" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                Join Room
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function joinRoom() {
+            var room_id = document.getElementById('room_id').value;
+            if (room_id) {
+                window.location.href = '/room/' + room_id;
+            }
+        }
+    </script>
+</body>
+</html>
